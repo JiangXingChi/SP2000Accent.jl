@@ -1,0 +1,12 @@
+# Pkg manifest of a library is environment-specific
+Manifest.toml
+
+# Serialized species indices (rebuilt on first use, ~14 s per dataset)
+cache/
+*.tmp
+
+# Tooling leftovers
+*.cov
+*.jl.cov
+*.jl.*.cov
+.julia/
