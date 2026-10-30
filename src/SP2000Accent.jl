@@ -30,7 +30,7 @@ module SP2000Accent
 # Declared before the includes so every included file sees the package version
 # rather than Base.VERSION (this binding shadows it inside the module; store.jl
 # therefore spells out Base.VERSION for the Julia version in the fingerprint).
-const VERSION = v"0.3.0"   # keep in sync with Project.toml
+const VERSION = v"0.3.1"   # keep in sync with Project.toml
 
 include("pinyin.jl")
 include("confusion.jl")

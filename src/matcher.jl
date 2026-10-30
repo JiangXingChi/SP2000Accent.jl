@@ -291,7 +291,7 @@ end
 # ============================================================
 
 # Share of the recall union kept for fine scoring; see model/待选参数.md.
-const POOL_FRACTION = Ref(0.30)
+const POOL_FRACTION = Ref(0.05)   # 2026-10-29 扫参：0.05–0.50 同分，取最小最快的一档
 
 "Set the coarse-ranking share, above 0 and at most 1; out-of-range values are rejected."
 function set_pool_fraction!(f::Float64)

@@ -21,13 +21,6 @@ using Pkg
 Pkg.add("SP2000Accent")
 ```
 
-Until the package is merged into the General registry, install it from the
-repository directly:
-
-```julia
-Pkg.add(url = "https://github.com/JiangXingChi/SP2000Accent.jl")
-```
-
 Requires Julia 1.10 or newer. The first query downloads the catalogue package
 (about 10 MB of xlsx) and builds an index (about 14 s); later sessions read a
 cache in about 0.5 s.
@@ -73,7 +66,7 @@ Three recall routes run in parallel and are unioned:
    looked up in a syllable inverted index;
 3. **initials** — the pinyin initials of the query.
 
-The union is coarse-ranked and truncated to 30% of its own size (first-letter
+The union is coarse-ranked and truncated to 5% of its own size (first-letter
 hits are always kept), then every survivor is scored as
 
 ```
@@ -93,10 +86,17 @@ SP2000Accent.set_importance!(5, 4, 1)  # reading, literal, initials
 SP2000Accent.set_confuse_sim!(0.90)    # floor for confusion pairs, 0 … 1
 ```
 
-Change them only after re-running an evaluation: they were fixed by a 2,875-point
-sweep (5 pool fractions × 115 weight triples × 5 floors) on a 2,200-item
-synthetic set, and the defaults are a deliberate, stable choice rather than the
-single top-scoring cell.
+Change them only after re-running an evaluation. The defaults come from an
+18,051-point sweep (11 pool fractions × 231 weight triples × 11 similarity
+floors, plus an upper-bound check) on a 2,200-item synthetic set and a 14-item
+real corpus:
+
+- pool fraction 5% — every fraction from 5% to 90% gives the same scores, so
+  the smallest one is taken; it halves the names that reach fine scoring
+  (median 10.5 ms per query instead of 17.5 ms at 30%);
+- weights 5/4/1 — real-corpus constraint and full Top-5 hold across a plateau,
+  and this triple sits inside it;
+- similarity floor 0.95 — 0.99 adds nothing, 0.90 and below lose 2–36 questions.
 
 ## Cache
 

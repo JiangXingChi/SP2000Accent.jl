@@ -1,7 +1,7 @@
 name = "SP2000Accent"
 uuid = "9453c99f-46b1-4855-9157-f74862a71777"
 authors = ["JiangXingChi"]
-version = "0.3.0"
+version = "0.3.1"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
