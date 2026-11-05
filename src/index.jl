@@ -61,22 +61,18 @@ function build_index!(idx::SpeciesIndex, df)
     fam_col = df[!, "科中文名"]
     gen_col = df[!, "属中文名"]
 
-    seen_names = Set{String}()
     # One set reused for the per-row reading dedupe: allocating a set per row
-    # meant 47 279 sets for one build. `empty!` keeps the buckets.
+    # meant 47 290 sets for one build. `empty!` keeps the buckets.
     seen_syl = Set{String}()
-    for k in eachindex(cn_col)
-        raw = cn_col[k]
-        (raw === missing || raw === nothing) && continue
-        cn_name = strip(string(raw))
-        isempty(cn_name) && continue
-        cn_name in seen_names && continue      # duplicate Chinese names: keep the first row
-        push!(seen_names, cn_name)
 
+    # Append one catalogue row and index it. Defined as a closure so the two
+    # passes below share the indexing body.
+    function push_row!(cn_name::AbstractString, sci_name::AbstractString,
+                       fam::AbstractString, gen::AbstractString)
         push!(idx.names, cn_name)
-        push!(idx.scientific_names, _cell(sci_col[k]))
-        push!(idx.families, _cell(fam_col[k]))
-        push!(idx.genera, _cell(gen_col[k]))
+        push!(idx.scientific_names, sci_name)
+        push!(idx.families, fam)
+        push!(idx.genera, gen)
         row = length(idx.names)
 
         # A query only forms an initials key from two or more Han characters
@@ -103,6 +99,47 @@ function build_index!(idx::SpeciesIndex, df)
                 end, row)
             end
         end
+        return row
+    end
+
+    # Pass 1: one row per Chinese name, first occurrence wins. Keeping this
+    # order is what holds row numbers — and therefore the tie order of the
+    # candidate table — identical to the pre-homonym index.
+    seen_names = Set{String}()
+    first_sci = Dict{String,String}()
+    for k in eachindex(cn_col)
+        raw = cn_col[k]
+        (raw === missing || raw === nothing) && continue
+        cn_name = strip(string(raw))
+        isempty(cn_name) && continue
+        cn_name in seen_names && continue
+        push!(seen_names, cn_name)
+        sci_name = _cell(sci_col[k])
+        first_sci[cn_name] = sci_name
+        push_row!(cn_name, sci_name, _cell(fam_col[k]), _cell(gen_col[k]))
+    end
+
+    # Pass 2: a Chinese name carried by a second scientific name is a genuine
+    # homonym — 龙须菜 is both a red alga (Gracilaria) and an asparagus
+    # (Asparagus) — and both rows must stay searchable, otherwise the candidate
+    # table silently drops one of the two taxa. These rows are appended after
+    # pass 1 so the rows of pass 1 keep their numbers. Only a row repeating
+    # both fields (same Chinese and same scientific name) is collapsed.
+    seen_pairs = Set{Tuple{String,String}}()
+    for (cn, sci) in first_sci
+        push!(seen_pairs, (cn, sci))
+    end
+    for k in eachindex(cn_col)
+        raw = cn_col[k]
+        (raw === missing || raw === nothing) && continue
+        cn_name = strip(string(raw))
+        isempty(cn_name) && continue
+        haskey(first_sci, cn_name) || continue          # unnamed rows already skipped
+        sci_name = _cell(sci_col[k])
+        sci_name == first_sci[cn_name] && continue      # the pass-1 row itself
+        (cn_name, sci_name) in seen_pairs && continue   # exact duplicate row: keep the first
+        push!(seen_pairs, (cn_name, sci_name))
+        push_row!(cn_name, sci_name, _cell(fam_col[k]), _cell(gen_col[k]))
     end
     return nothing
 end

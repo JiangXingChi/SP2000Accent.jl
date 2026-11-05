@@ -315,15 +315,19 @@ end
 end
 
 @testset "Index hygiene and qualifiers" begin
-    # Table with a missing name, a duplicate, and a bracketed qualifier.
+    # Table with a missing name, a homonym kept under two scientific names, an
+    # exact duplicate row, and a bracketed qualifier.
     tbl = _MixedTable(Dict(
-        "物种中文名" => Union{String,Missing}["狗牙根", missing, "狗牙根", "月季(原变种)"],
-        "物种拉丁名" => Union{String,Missing}["Cynodon dactylon", "X y", "Cynodon dactylon var.", "Rosa chinensis var."],
-        "科中文名" => Union{String,Missing}["禾本科", "X科", "禾本科", "蔷薇科"],
-        "属中文名" => Union{String,Missing}["狗牙根属", "X属", "狗牙根属", "蔷薇属"]))
+        "物种中文名" => Union{String,Missing}["狗牙根", missing, "狗牙根", "狗牙根", "月季(原变种)"],
+        "物种拉丁名" => Union{String,Missing}["Cynodon dactylon", "X y", "Cynodon dactylon var.", "Cynodon dactylon", "Rosa chinensis var."],
+        "科中文名" => Union{String,Missing}["禾本科", "X科", "禾本科", "禾本科", "蔷薇科"],
+        "属中文名" => Union{String,Missing}["狗牙根属", "X属", "狗牙根属", "狗牙根属", "蔷薇属"]))
     idx = Index.SpeciesIndex()
     Index.build_index!(idx, tbl)
-    @test idx.names == ["狗牙根", "月季(原变种)"]          # missing skipped, duplicate dropped
+    # Missing skipped. Pass 1 keeps one row per Chinese name, so the homonym
+    # under a second scientific name lands after it; an exact duplicate row is dropped.
+    @test idx.names == ["狗牙根", "月季(原变种)", "狗牙根"]
+    @test idx.scientific_names == ["Cynodon dactylon", "Rosa chinensis var.", "Cynodon dactylon var."]
     @test !haskey(idx.char_index, '(')                      # punctuation not indexed
     @test isempty(Index.search_candidates(idx, "("))
 

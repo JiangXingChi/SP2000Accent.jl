@@ -5,7 +5,7 @@
 # (including the catalogue package version), and the global index lifetime.
 # The query entry point is in api.jl.
 
-const INDEX_CACHE_VERSION = "5"   # 5: no unnamed/duplicate rows, non-Han chars not indexed
+const INDEX_CACHE_VERSION = "6"   # 6: rows keyed by (Chinese, scientific) name, homonyms kept
 
 # ------------------------------------------------------------
 # Dataset table
