@@ -102,6 +102,22 @@ end
     # Initials-route hits skip the ordering and are always kept
     pool2 = Matcher.coarse_pool("苟牙根", cands; fraction=0.1)
     @test any(c -> c[1] == "狗牙根", pool2)
+
+    # Homophone exemption: a name whose readings can equal the query's skips
+    # the quota, whether the match needs the default reading (黎/藜) or a
+    # polyphonic one (离长/鳢肠, 长=[zhang,chang]). Both tests build a quota
+    # that would otherwise drop the homophone behind higher-key distractors.
+    @test Matcher._can_homophone("黎", "藜")
+    @test Matcher._can_homophone("离长", "鳢肠")
+    @test !Matcher._can_homophone("离长", "狗牙根")
+    @test Matcher._can_homophone("a藜b", "藜")          # non-Han skipped on both sides
+    @test !Matcher._can_homophone("藜", "藜梨")        # Han counts differ
+    pool3 = Matcher.coarse_pool("黎", [("泥梨", "", "", ""), ("藜", "", "", ""),
+                                       ("狗牙根", "", "", "")]; fraction=0.34)
+    @test any(c -> c[1] == "藜", pool3)
+    pool4 = Matcher.coarse_pool("离长", [("离长茅", "", "", ""), ("离长草", "", "", ""),
+                                         ("鳢肠", "", "", "")]; fraction=0.34)
+    @test any(c -> c[1] == "鳢肠", pool4)
 end
 
 @testset "Index and three-way recall" begin

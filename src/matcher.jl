@@ -267,10 +267,10 @@ and again for the sort key.
 function _score_and_bare(qp::_QueryPrep, target::AbstractString)::Tuple{Float64,Bool}
     full = _score_one(qp, target)
     _is_bare_name(target) && return (full, true)
-    # `_is_bare_name` has already accepted every bracket-free name; only the few
-    # names that still carry brackets reach this replace.
+    # `_is_bare_name` has already accepted every bracket-free name, so reaching
+    # this line means the trailing qualifier matched and `replace` below
+    # necessarily changes the string — the old `base == target` guard was dead.
     base = replace(target, _QUALIFIER_RE => "")
-    base == target && return (full, true)
     return (max(full, _score_one(qp, base)), false)
 end
 
@@ -376,12 +376,39 @@ function _coarse_key(prep::_CoarsePrep, name::AbstractString)::Int
     return shared + hits
 end
 
+"Position-wise homophone test, zero-allocation: two names can be homophones
+iff their Han counts match and every Han position has a common reading
+(polyphonic expansion included; e.g. 离长 with 长=[zhang,chang] matches 鳢肠
+li chang). Non-Han characters are skipped on both sides, so bracketed names
+compare by their Han core — the same convention as get_pinyin."
+function _can_homophone(q::AbstractString, t::AbstractString)::Bool
+    qit = iterate(q)
+    tit = iterate(t)
+    while true
+        while qit !== nothing && !Pinyin.is_han_char(qit[1])
+            qit = iterate(q, qit[2])
+        end
+        while tit !== nothing && !Pinyin.is_han_char(tit[1])
+            tit = iterate(t, tit[2])
+        end
+        (qit === nothing || tit === nothing) && return qit === tit
+        any(r -> r in Pinyin.readings_of(tit[1]), Pinyin.readings_of(qit[1])) || return false
+        qit = iterate(q, qit[2])
+        tit = iterate(t, tit[2])
+    end
+end
+
 """
     coarse_pool(query, candidates; fraction=POOL_FRACTION[])
 
 Keep roughly `fraction × |candidates|` rows by coarse key. Candidates whose
-(Han count, initials) key equals the query's are kept outside the quota; they
-are still fine-scored and may rank anywhere.
+(Han count, initials) key equals the query's, and candidates that can be
+homophones of the query (position-wise reading overlap, polyphonic expansion
+included; e.g. 离长 with 长=[zhang,chang] matches 鳢肠 li chang), are kept
+outside the quota; they are still fine-scored and may rank anywhere. The
+homophone exemption rescues exact homophones (query 黎 -> name 藜): they land
+in the lowest coarse tier with thousands of tied candidates, where the 5%
+quota drops them at random even though the fine score would rank them first.
 """
 function coarse_pool(query::AbstractString, candidates::Vector{NTuple{4,String}};
                      fraction::Float64=POOL_FRACTION[])::Vector{NTuple{4,String}}
@@ -396,10 +423,11 @@ function coarse_pool(query::AbstractString, candidates::Vector{NTuple{4,String}}
     q_n = prep.n_han
     init_key = prep.init_key
     for c in candidates
-        # The Han-character count is a cheap pre-check: only names with the
-        # query's count can produce its initials key, so most candidates skip
-        # the key construction (get_initials is 0.24 µs and 176 B each).
-        if q_n >= 2 && _han_count(c[1]) == q_n && _initials_key(q_n, c[1]) == init_key
+        c_n = _han_count(c[1])
+        # One Han-count scan per candidate, shared by both exemptions (the
+        # old if/elseif tested it twice for every mismatched candidate).
+        if c_n == q_n && ((q_n >= 2 && _initials_key(q_n, c[1]) == init_key) ||
+                          (q_n > 0 && _can_homophone(query, c[1])))
             push!(keep, c)
         else
             push!(rest, c)
